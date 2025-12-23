@@ -2,578 +2,507 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADS-B 修正台 (Pro)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ADS-B 修正台 (Ultima)</title>
     <style>
         :root {
-            --bg-color: #f0f2f5;
+            --bg-color: #f2f2f7;
             --card-bg: #ffffff;
-            --text-primary: #1c1e21;
-            --text-secondary: #606770;
+            --text-primary: #000000;
+            --text-secondary: #8e8e93;
             --accent-color: #007AFF;
-            --error-color: #FF3B30;
-            --warning-color: #FF9500;
-            --success-color: #34C759;
-            --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            --radius: 16px;
+            --error-color: #ff3b30;
+            --warning-color: #ffcc00;
+            --success-color: #34c759;
+            --shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            --radius: 12px;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
             background-color: var(--bg-color);
             color: var(--text-primary);
             margin: 0;
-            padding: 20px;
+            padding: 16px;
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .container {
-            max-width: 1000px;
-            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
             display: grid;
-            gap: 24px;
+            gap: 16px;
         }
 
         /* Header */
         .header {
+            background: var(--card-bg);
+            padding: 16px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: var(--card-bg);
-            padding: 20px 30px;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            flex-wrap: wrap;
-            gap: 15px;
         }
         
         .header h1 {
             margin: 0;
-            font-size: 20px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            font-size: 18px;
+            font-weight: 600;
         }
 
-        .status-badge {
-            font-size: 12px;
-            padding: 4px 12px;
+        .status-pill {
+            font-size: 11px;
+            padding: 4px 10px;
             border-radius: 20px;
             background: #eee;
             color: #666;
-            font-weight: 600;
-            display: inline-flex;
+            font-weight: 500;
+            display: flex;
             align-items: center;
             gap: 6px;
-            transition: all 0.3s;
         }
         
-        .status-badge.live { background: #e6f9ed; color: var(--success-color); }
-        .status-badge.stale { background: #fff5e6; color: var(--warning-color); }
-        .status-badge.error { background: #ffebeb; color: var(--error-color); }
-        .status-badge.loading { background: #e6f2ff; color: var(--accent-color); }
+        .status-pill.live { background: #e8f5e9; color: #2e7d32; }
+        .status-pill.error { background: #ffebee; color: #c62828; }
+        .status-pill.loading { background: #e3f2fd; color: #1565c0; }
+
+        .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+        .blink { animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.4; } }
 
         /* Clocks */
-        .clock-grid {
+        .clock-bar {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 10px;
         }
-        .clock-card {
-            background: var(--text-primary);
-            color: white;
-            padding: 15px 25px;
+        .clock-box {
+            background: var(--card-bg); /* light theme default */
+            padding: 12px;
             border-radius: var(--radius);
             text-align: center;
             box-shadow: var(--shadow);
         }
-        .clock-label { font-size: 12px; opacity: 0.7; letter-spacing: 1px; margin-bottom: 5px; text-transform: uppercase; }
-        .clock-time { font-size: 28px; font-weight: 600; font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+        .clock-box.dark { background: #2c2c2e; color: white; }
+        .clock-label { font-size: 10px; opacity: 0.7; text-transform: uppercase; margin-bottom: 2px; }
+        .clock-val { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
-        /* Main Content Grid */
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-        }
-
-        @media (max-width: 768px) {
-            .main-grid, .clock-grid { grid-template-columns: 1fr; }
-        }
-
+        /* Panels */
         .panel {
             background: var(--card-bg);
-            padding: 30px;
+            padding: 20px;
             border-radius: var(--radius);
             box-shadow: var(--shadow);
-            position: relative;
         }
 
-        .panel-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #f0f0f0;
+        .panel-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ebedf0;
         }
 
-        /* Forms */
-        .form-group { margin-bottom: 20px; position: relative; }
-        .form-group label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500; }
+        .panel-title { font-size: 16px; font-weight: 600; }
+        
+        .btn-refresh {
+            background: none;
+            border: none;
+            color: var(--accent-color);
+            font-size: 14px;
+            font-weight: 500;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .btn-refresh:active { opacity: 0.6; }
+
+        /* Inputs */
+        .input-row { margin-bottom: 16px; position: relative; }
+        .input-row label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
         
         input {
             width: 100%;
-            padding: 14px;
-            font-size: 16px;
-            border: 1px solid #e1e4e8;
-            border-radius: 12px;
-            background: #f9f9fa;
+            padding: 12px;
+            font-size: 17px; /* Prevent iOS zoom */
+            border: 1px solid #d1d1d6;
+            border-radius: 8px;
+            background: #f9f9f9;
             box-sizing: border-box;
-            transition: all 0.2s;
+            -webkit-appearance: none;
         }
-        input:focus { outline: none; border-color: var(--accent-color); background: #fff; box-shadow: 0 0 0 4px rgba(0,122,255,0.1); }
+        input:focus { border-color: var(--accent-color); background: #fff; outline: none; }
         
-        .unit-badge {
+        .suffix {
             position: absolute;
-            right: 15px;
-            top: 42px;
+            right: 12px;
+            top: 38px;
             font-size: 14px;
-            color: var(--text-secondary);
+            color: #8e8e93;
             pointer-events: none;
         }
 
-        /* Auto-complete Dropdown */
-        .autocomplete-items {
+        /* Search List */
+        .search-container { position: relative; }
+        .dropdown {
             position: absolute;
-            border: 1px solid #d4d4d4;
-            border-bottom: none;
-            border-top: none;
-            z-index: 99;
-            top: 100%;
-            left: 0;
-            right: 0;
-            border-radius: 0 0 12px 12px;
-            overflow: hidden;
+            top: 100%; left: 0; right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 0 0 8px 8px;
+            z-index: 100;
+            max-height: 200px;
+            overflow-y: auto;
             box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         }
-        .autocomplete-items div {
-            padding: 12px;
-            cursor: pointer;
-            background-color: #fff;
-            border-bottom: 1px solid #d4d4d4;
-            font-size: 14px;
-        }
-        .autocomplete-items div:hover { background-color: #e9e9e9; }
-        .autocomplete-items div strong { color: var(--accent-color); }
-        .airport-name-display { font-size: 12px; color: var(--text-secondary); margin-top: 6px; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dropdown div { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .dropdown div:active { background: #f0f0f0; }
 
         /* Results */
-        .result-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px dashed #eee;
-        }
-        .result-item:last-child { border-bottom: none; }
-        .result-key { color: var(--text-secondary); font-size: 14px; }
-        .result-val { font-weight: 600; font-size: 18px; }
-        
-        .big-result {
-            background: linear-gradient(135deg, #007AFF 0%, #00C6FF 100%);
+        .res-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #eee; font-size: 14px; }
+        .res-row:last-child { border-bottom: none; }
+        .res-val { font-weight: 600; font-size: 16px; }
+
+        .hero-res {
+            background: linear-gradient(135deg, #007AFF, #00C6FF);
             color: white;
-            padding: 25px;
-            border-radius: 16px;
+            padding: 20px;
+            border-radius: 12px;
             text-align: center;
-            margin-top: 20px;
+            margin-top: 15px;
         }
-        .big-result .label { opacity: 0.9; font-size: 14px; margin-bottom: 5px; }
-        .big-result .value { font-size: 36px; font-weight: 700; }
-        .big-result .sub { font-size: 12px; opacity: 0.8; margin-top: 5px; }
-
-        .toggle-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
-        .toggle-header { cursor: pointer; color: var(--text-secondary); font-size: 12px; display: flex; align-items: center; gap: 5px; }
-
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-        .updating-dot { display: inline-block; width: 8px; height: 8px; background: currentColor; border-radius: 50%; }
-        .loading .updating-dot { animation: pulse 0.8s infinite; }
+        .hero-val { font-size: 32px; font-weight: 700; margin: 5px 0; }
+        
+        /* Debug Info */
+        .debug-info { font-size: 10px; color: #999; text-align: right; margin-top: 5px; font-family: monospace; }
+        
+        /* Hidden advanced */
+        #adv-area { display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- Header -->
     <div class="header">
-        <h1>✈️ ADS-B 修正台</h1>
-        <div id="status-bar" class="status-badge">
-            <span class="updating-dot"></span>
-            <span id="status-text">系统就绪</span>
-        </div>
-        <div style="font-size: 12px; color: #999;">
-            双通道数据源 | 智能唤醒更新
+        <h1>ADS-B 修正台</h1>
+        <div id="status-pill" class="status-pill">
+            <span class="dot"></span>
+            <span id="status-txt">等待输入</span>
         </div>
     </div>
 
-    <!-- Clocks -->
-    <div class="clock-grid">
-        <div class="clock-card">
-            <div class="clock-label">Local Time (CST)</div>
-            <div class="clock-time" id="time-local">--:--:--</div>
+    <div class="clock-bar">
+        <div class="clock-box">
+            <div class="clock-label">Local</div>
+            <div class="clock-val" id="t-local">--:--</div>
         </div>
-        <div class="clock-card" style="background: #333;">
-            <div class="clock-label">UTC / ZULU</div>
-            <div class="clock-time" id="time-utc">--:--:--</div>
+        <div class="clock-box dark">
+            <div class="clock-label">UTC</div>
+            <div class="clock-val" id="t-utc">--:--Z</div>
         </div>
     </div>
 
-    <div class="main-grid">
-        <!-- INPUTS -->
-        <div class="panel">
-            <div class="panel-title">
-                <span>参数输入</span>
-                <button onclick="forceRefresh()" style="background:none; border:none; color:var(--accent-color); cursor:pointer; font-size:14px;">↻ 立即刷新</button>
-            </div>
-
-            <div class="form-group" style="z-index: 100;">
-                <label>机场搜索 (输入代码、城市或名称)</label>
-                <div style="position: relative;">
-                    <input type="text" id="airport-search" placeholder="例：北京 / ZBAA / Shanghai" autocomplete="off">
-                    <div id="autocomplete-list" class="autocomplete-items"></div>
-                </div>
-                <div class="airport-name-display" id="airport-full-name"></div>
-            </div>
-
-            <div class="form-group">
-                <label>机场标高 (Elevation)</label>
-                <input type="number" id="elevation" value="0">
-                <span class="unit-badge">米</span>
-            </div>
-
-            <div class="form-group">
-                <label>实时修正海压 (QNH) <span id="qnh-age" style="font-size:11px; font-weight:normal; margin-left:10px;"></span></label>
-                <input type="number" id="qnh" value="1013.25" step="1">
-                <span class="unit-badge">hPa</span>
-            </div>
-
-            <div class="form-group">
-                <label>ADS-B 原始读数 (QNE)</label>
-                <input type="number" id="adsb-alt" value="0" placeholder="0">
-                <span class="unit-badge">米</span>
-            </div>
-
-            <div class="toggle-section">
-                <div class="toggle-header" onclick="document.getElementById('adv-settings').style.display = document.getElementById('adv-settings').style.display === 'none' ? 'block' : 'none'">
-                    ▶ 高级参数设置
-                </div>
-                <div id="adv-settings" style="display: none; margin-top: 15px;">
-                    <div class="form-group">
-                        <label>气压梯度系数</label>
-                        <input type="number" id="coef" value="9.14" step="0.01">
-                        <span class="unit-badge">米/hPa</span>
-                    </div>
-                </div>
-            </div>
+    <div class="panel">
+        <div class="panel-header">
+            <span class="panel-title">参数设置</span>
+            <button class="btn-refresh" onclick="forceRefresh()">↻ 刷新数据</button>
         </div>
 
-        <!-- RESULTS -->
-        <div class="panel">
-            <div class="panel-title">实时计算结果</div>
+        <div class="search-container input-row">
+            <label>机场代码 (ICAO) 或名称</label>
+            <input type="text" id="ipt-icao" placeholder="例如 ZBAA" autocomplete="off">
+            <div id="list-dropdown" class="dropdown"></div>
+            <div id="airport-name" style="font-size:12px; color:var(--accent-color); margin-top:4px; height:16px;"></div>
+        </div>
 
-            <div class="result-item">
-                <span class="result-key">QNH 偏差值 (QNH-QNE)</span>
-                <span class="result-val" id="diff-pressure">0 hPa</span>
-            </div>
-            
-            <div class="result-item">
-                <span class="result-key">气压高度修正量</span>
-                <span class="result-val" id="res-correction" style="color: var(--accent-color);">+0.00 米</span>
-            </div>
+        <div class="input-row">
+            <label>实时修正海压 (QNH)</label>
+            <input type="number" id="ipt-qnh" value="1013">
+            <span class="suffix">hPa</span>
+            <div class="debug-info" id="data-source-info"></div>
+        </div>
 
-            <div class="result-item">
-                <span class="result-key">系统偏置值 (用于校准设备)</span>
-                <span class="result-val" id="res-offset" style="color: var(--text-primary);">0.00 米</span>
-            </div>
-            
-            <div class="big-result">
-                <div class="label">飞机相对高度 (AGL)</div>
-                <div class="value" id="res-final">0.0</div>
-                <div class="sub">米 (Meters)</div>
-            </div>
+        <div class="input-row">
+            <label>机场标高 (Elevation)</label>
+            <input type="number" id="ipt-elev" value="0">
+            <span class="suffix">米</span>
+        </div>
 
-            <div style="margin-top: 20px; padding: 15px; background: #fff5e6; border-radius: 8px; font-size: 12px; color: #b36b00; line-height: 1.5;">
-                <strong>⚠️ 注意：</strong> 如显示“数据已过期”，请勿依赖此结果。系统会自动尝试双线路更新。
+        <div class="input-row">
+            <label>ADS-B 原始读数 (QNE)</label>
+            <input type="number" id="ipt-adsb" value="0">
+            <span class="suffix">米</span>
+        </div>
+
+        <div style="text-align: center; font-size: 12px; color: var(--accent-color); margin-top: 10px;" onclick="toggleAdv()">
+            显示高级设置 ▼
+        </div>
+        <div id="adv-area">
+            <div class="input-row">
+                <label>气压梯度系数</label>
+                <input type="number" id="ipt-coef" value="9.14" step="0.01">
+                <span class="suffix">m/hPa</span>
             </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <span class="panel-title">计算结果</span>
+        </div>
+        <div class="res-row">
+            <span>QNH 差值</span>
+            <span class="res-val" id="out-diff">0 hPa</span>
+        </div>
+        <div class="res-row">
+            <span>气压修正量</span>
+            <span class="res-val" id="out-corr" style="color:var(--accent-color)">+0.00 米</span>
+        </div>
+        <div class="res-row">
+            <span>系统偏置值</span>
+            <span class="res-val" id="out-offset">0.00 米</span>
+        </div>
+        
+        <div class="hero-res">
+            <div style="font-size:12px; opacity:0.8">飞机相对高度 (AGL)</div>
+            <div class="hero-val" id="out-final">0</div>
+            <div style="font-size:12px; opacity:0.8">Meters</div>
         </div>
     </div>
 </div>
 
 <script>
-    // ==========================================
-    // 1. 机场数据库
-    // ==========================================
+    // === 1. 数据配置 ===
     const airports = [
-        {icao:"ZBAA", name:"北京首都", city:"Beijing"},
-        {icao:"ZBAD", name:"北京大兴", city:"Beijing"},
-        {icao:"ZSSS", name:"上海虹桥", city:"Shanghai"},
-        {icao:"ZSPD", name:"上海浦东", city:"Shanghai"},
-        {icao:"ZGGG", name:"广州白云", city:"Guangzhou"},
-        {icao:"ZGSZ", name:"深圳宝安", city:"Shenzhen"},
-        {icao:"ZUUU", name:"成都双流", city:"Chengdu"},
-        {icao:"ZUUU", name:"成都天府", city:"Chengdu"},
-        {icao:"ZPPP", name:"昆明长水", city:"Kunming"},
-        {icao:"ZXYA", name:"西安咸阳", city:"Xi'an"},
-        {icao:"ZUCK", name:"重庆江北", city:"Chongqing"},
-        {icao:"ZHZH", name:"杭州萧山", city:"Hangzhou"},
-        {icao:"ZSNJ", name:"南京禄口", city:"Nanjing"},
-        {icao:"ZSAM", name:"厦门高崎", city:"Xiamen"},
-        {icao:"ZHHH", name:"武汉天河", city:"Wuhan"},
-        {icao:"ZGHA", name:"长沙黄花", city:"Changsha"},
-        {icao:"ZBTJ", name:"天津滨海", city:"Tianjin"},
-        {icao:"ZSQD", name:"青岛胶东", city:"Qingdao"},
-        {icao:"ZSYT", name:"烟台蓬莱", city:"Yantai"},
-        {icao:"ZSOF", name:"合肥新桥", city:"Hefei"},
-        {icao:"VHHH", name:"香港赤鱲角", city:"Hong Kong"},
-        {icao:"VMMC", name:"澳门国际", city:"Macau"},
-        {icao:"RCSS", name:"台北松山", city:"Taipei"},
-        {icao:"RCTP", name:"台北桃园", city:"Taipei"},
-        {icao:"RJTT", name:"东京羽田", city:"Tokyo"},
-        {icao:"RJAA", name:"东京成田", city:"Tokyo"},
-        {icao:"RKSI", name:"首尔仁川", city:"Seoul"},
-        {icao:"WSSS", name:"新加坡樟宜", city:"Singapore"},
-        {icao:"KJFK", name:"纽约肯尼迪", city:"New York"},
-        {icao:"EGLL", name:"伦敦希思罗", city:"London"},
-        {icao:"KLAX", name:"洛杉矶国际", city:"Los Angeles"},
-        {icao:"OMDB", name:"迪拜国际", city:"Dubai"}
+        {c:"ZBAA",n:"北京首都",ct:"Beijing"},{c:"ZBAD",n:"北京大兴",ct:"Beijing"},
+        {c:"ZSSS",n:"上海虹桥",ct:"Shanghai"},{c:"ZSPD",n:"上海浦东",ct:"Shanghai"},
+        {c:"ZGGG",n:"广州白云",ct:"Guangzhou"},{c:"ZGSZ",n:"深圳宝安",ct:"Shenzhen"},
+        {c:"ZUUU",n:"成都天府",ct:"Chengdu"},{c:"ZPPP",n:"昆明长水",ct:"Kunming"},
+        {c:"ZXYA",n:"西安咸阳",ct:"Xi'an"},{c:"ZUCK",n:"重庆江北",ct:"Chongqing"},
+        {c:"ZHZH",n:"杭州萧山",ct:"Hangzhou"},{c:"ZSNJ",n:"南京禄口",ct:"Nanjing"},
+        {c:"ZHHH",n:"武汉天河",ct:"Wuhan"},{c:"ZGHA",n:"长沙黄花",ct:"Changsha"},
+        {c:"VHHH",n:"香港 HKG",ct:"HongKong"},{c:"VMMC",n:"澳门 MFM",ct:"Macau"},
+        {c:"RCTP",n:"台北桃园",ct:"Taipei"},{c:"RJTT",n:"东京羽田",ct:"Tokyo"},
+        {c:"WSSS",n:"新加坡 SIN",ct:"Singapore"},{c:"KJFK",n:"纽约 JFK",ct:"NewYork"},
+        {c:"EGLL",n:"伦敦 LHR",ct:"London"},{c:"OMDB",n:"迪拜 DXB",ct:"Dubai"}
     ];
 
-    // ==========================================
-    // 2. 状态与配置
-    // ==========================================
-    let lastFetchTime = 0;
     let currentIcao = "";
-    const UPDATE_INTERVAL = 10 * 60 * 1000; // 10分钟
+    let lastFetchTime = 0;
 
-    // ==========================================
-    // 3. 增强版网络请求 (核心修复)
-    // ==========================================
-    async function fetchWithTimeout(resource, options = {}) {
-        const { timeout = 8000 } = options; // 8秒超时
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), timeout);
-        const response = await fetch(resource, { ...options, signal: controller.signal });
-        clearTimeout(id);
-        return response;
-    }
-
+    // === 2. 核心网络引擎 (Multi-Source Fetcher) ===
     async function fetchMetar(icao) {
-        if (!icao || icao.length !== 4) return;
+        if(!icao || icao.length !== 4) return;
         
-        const statusEl = document.getElementById('status-text');
-        const badgeEl = document.getElementById('status-bar');
-        const ageEl = document.getElementById('qnh-age');
+        const ui = {
+            status: document.getElementById('status-pill'),
+            txt: document.getElementById('status-txt'),
+            dot: document.querySelector('.dot'),
+            info: document.getElementById('data-source-info')
+        };
 
-        statusEl.textContent = "正在连接气象源...";
-        badgeEl.className = "status-badge loading";
+        // UI 设为加载中
+        ui.status.className = "status-pill loading";
+        ui.txt.textContent = "正在连接气象源...";
+        ui.dot.className = "dot blink";
+        ui.info.textContent = "";
 
-        // 双代理策略
-        const targetUrl = `https://tgftp.nws.noaa.gov/data/observations/metar/stations/${icao.toUpperCase()}.TXT`;
-        // 代理1: corsproxy.io (速度快)
-        const proxy1 = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-        // 代理2: allorigins (备用)
-        const proxy2 = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}&nocache=${Date.now()}`;
+        // 构造请求链 (Waterfall Strategy)
+        // 关键：加 timestamp 防止 iOS 缓存
+        const ts = Date.now();
+        const sources = [
+            {
+                name: "Vatsim (Fast)", 
+                url: `https://metar.vatsim.net/metar.php?id=${icao}&t=${ts}` 
+                // VATSIM 是唯一原生支持 CORS 的开放源，速度最快
+            },
+            {
+                name: "Proxy A (IO)", 
+                url: `https://corsproxy.io/?https://tgftp.nws.noaa.gov/data/observations/metar/stations/${icao}.TXT?t=${ts}`
+            },
+            {
+                name: "Proxy B (AO)", 
+                url: `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://tgftp.nws.noaa.gov/data/observations/metar/stations/${icao}.TXT?t=${ts}`)}`
+            }
+        ];
 
-        let text = null;
+        let success = false;
+        let metarText = "";
+        let usedSource = "";
 
-        try {
-            // 尝试代理 1
-            statusEl.textContent = "尝试主线路...";
-            const res1 = await fetchWithTimeout(proxy1);
-            if (res1.ok) text = await res1.text();
-            else throw new Error("Proxy 1 Failed");
-        } catch (e1) {
-            console.warn("主线路失败，切换备用线路...", e1);
+        for (let src of sources) {
             try {
-                // 尝试代理 2
-                statusEl.textContent = "切换备用线路...";
-                const res2 = await fetchWithTimeout(proxy2);
-                if (res2.ok) text = await res2.text();
-                else throw new Error("All Proxies Failed");
-            } catch (e2) {
-                console.error("更新失败", e2);
-                statusEl.textContent = "网络/源站错误 (点击刷新重试)";
-                badgeEl.className = "status-badge error";
-                return; // 终止
+                ui.info.textContent = `尝试: ${src.name}...`;
+                console.log(`Trying ${src.name}...`);
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
+                
+                const res = await fetch(src.url, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (res.ok) {
+                    const text = await res.text();
+                    // 简单验证是否是有效 METAR (必须包含 ICAO)
+                    if (text.includes(icao) || text.length > 10) {
+                        metarText = text;
+                        usedSource = src.name;
+                        success = true;
+                        break; // 成功即跳出循环
+                    }
+                }
+            } catch (e) {
+                console.warn(`${src.name} failed:`, e);
             }
         }
 
-        // 解析数据
-        try {
-            // 解析 QNH
-            let qnh = 1013;
-            // 优先匹配 Qxxxx (hPa)
-            if (text.match(/Q(\d{4})/)) {
-                qnh = parseInt(text.match(/Q(\d{4})/)[1]);
-            } 
-            // 其次匹配 Axxxx (inHg)
-            else if (text.match(/A(\d{4})/)) {
-                qnh = Math.round(parseInt(text.match(/A(\d{4})/)[1]) / 100 * 33.8639);
-            } else {
-                throw new Error("报文中无压力数据");
-            }
+        if (success) {
+            parseAndSet(metarText, usedSource);
+            ui.status.className = "status-pill live";
+            ui.txt.textContent = "数据已更新";
+            ui.dot.className = "dot";
+        } else {
+            ui.status.className = "status-pill error";
+            ui.txt.textContent = "所有线路均失败";
+            ui.dot.className = "dot";
+            ui.info.textContent = "请检查手机网络或稍后重试";
+        }
+    }
 
-            // 更新成功
-            document.getElementById('qnh').value = qnh;
-            lastFetchTime = Date.now();
+    // === 3. 数据解析 ===
+    function parseAndSet(text, sourceName) {
+        // 1. 找 QNH (Qxxxx)
+        let qMatch = text.match(/Q(\d{4})/);
+        let qnh = 0;
+
+        if (qMatch) {
+            qnh = parseInt(qMatch[1]);
+        } else {
+            // 2. 找 Altimeter (Axxxx) 美国标准
+            let aMatch = text.match(/A(\d{4})/);
+            if (aMatch) {
+                // 英寸汞柱转hPa
+                qnh = Math.round(parseInt(aMatch[1]) / 100 * 33.8639);
+            }
+        }
+
+        if (qnh > 800 && qnh < 1100) {
+            document.getElementById('ipt-qnh').value = qnh;
             
-            // 提取报文时间
-            const timeMatch = text.match(/(\d{2})(\d{4})Z/);
-            if(timeMatch) {
-                // 日期+时间简单展示
-                ageEl.textContent = `(报文: ${timeMatch[2]}Z)`;
-            }
+            // 提取时间 DDHHMMZ
+            let timeStr = "";
+            let tMatch = text.match(/\d{6}Z/);
+            if(tMatch) timeStr = tMatch[0];
 
-            calculate();
-            checkStale();
-
-        } catch (parseError) {
-            statusEl.textContent = "数据解析错误";
-            badgeEl.className = "status-badge error";
+            document.getElementById('data-source-info').textContent = 
+                `源: ${sourceName} | 报文: ${timeStr} | QNH: ${qnh}`;
+            
+            lastFetchTime = Date.now();
+            calc();
+        } else {
+            document.getElementById('data-source-info').textContent = "报文解析失败: 无压力数据";
         }
     }
 
-    // ==========================================
-    // 4. 计算逻辑
-    // ==========================================
-    function calculate() {
-        const qnh = parseFloat(document.getElementById('qnh').value) || 1013.25;
-        const qne = 1013.25;
-        const elevation = parseFloat(document.getElementById('elevation').value) || 0;
-        const adsb = parseFloat(document.getElementById('adsb-alt').value) || 0;
-        const coef = parseFloat(document.getElementById('coef').value) || 9.14;
+    // === 4. 计算引擎 ===
+    function calc() {
+        const getVal = (id) => parseFloat(document.getElementById(id).value) || 0;
+        
+        const qnh = getVal('ipt-qnh') || 1013;
+        const elev = getVal('ipt-elev');
+        const adsb = getVal('ipt-adsb');
+        const coef = getVal('ipt-coef') || 9.14;
 
-        const diff = qnh - qne;
+        // 逻辑
+        const diff = qnh - 1013.25;
         const correction = diff * coef;
-        const offset = correction - elevation;
-        const final = adsb + correction - elevation;
+        const offset = correction - elev; // 系统偏置 = 气压修正 - 海拔
+        const final = adsb + correction - elev; // 飞机相对高度 = ADS-B + 修正 - 海拔
 
-        document.getElementById('diff-pressure').textContent = (diff > 0 ? "+" : "") + diff.toFixed(1) + " hPa";
-        document.getElementById('res-correction').textContent = (correction > 0 ? "+" : "") + correction.toFixed(2) + " 米";
-        document.getElementById('res-offset').textContent = (offset > 0 ? "+" : "") + offset.toFixed(2) + " 米";
-        document.getElementById('res-final').textContent = final.toFixed(1);
+        // 输出
+        document.getElementById('out-diff').textContent = (diff>0?"+":"") + diff.toFixed(1) + " hPa";
+        document.getElementById('out-corr').textContent = (diff>0?"+":"") + correction.toFixed(1) + " 米";
+        document.getElementById('out-offset').textContent = (offset>0?"+":"") + offset.toFixed(1) + " 米";
+        document.getElementById('out-final').textContent = Math.round(final); // 取整显示更直观
     }
 
-    ['qnh', 'elevation', 'adsb-alt', 'coef'].forEach(id => {
-        document.getElementById(id).addEventListener('input', calculate);
+    // === 5. 交互逻辑 ===
+    // 监听输入自动计算
+    ['ipt-qnh', 'ipt-elev', 'ipt-adsb', 'ipt-coef'].forEach(id => {
+        document.getElementById(id).addEventListener('input', calc);
     });
 
-    // ==========================================
-    // 5. 智能定时与唤醒机制 (核心修复)
-    // ==========================================
-    function checkStale() {
-        const now = Date.now();
-        const statusEl = document.getElementById('status-text');
-        const badgeEl = document.getElementById('status-bar');
+    // 搜索框逻辑
+    const iptIcao = document.getElementById('ipt-icao');
+    const drop = document.getElementById('list-dropdown');
+    
+    iptIcao.addEventListener('input', (e) => {
+        const val = e.target.value.toUpperCase();
+        drop.innerHTML = "";
+        
+        if(!val) { document.getElementById('airport-name').textContent = ""; return; }
 
-        if (lastFetchTime === 0) return;
+        const hits = airports.filter(a => a.c.includes(val) || a.n.includes(val) || a.ct.toUpperCase().includes(val));
+        
+        hits.forEach(a => {
+            const div = document.createElement('div');
+            div.innerHTML = `<b>${a.c}</b> - ${a.ct} ${a.n}`;
+            div.onclick = () => {
+                iptIcao.value = a.c;
+                currentIcao = a.c;
+                document.getElementById('airport-name').textContent = `${a.ct} ${a.n}`;
+                drop.innerHTML = "";
+                fetchMetar(currentIcao);
+            };
+            drop.appendChild(div);
+        });
 
-        const diffMinutes = (now - lastFetchTime) / 60000;
-
-        if (diffMinutes > 60) {
-            statusEl.textContent = "数据已过期 (>1h)";
-            badgeEl.className = "status-badge error"; // Red
-        } else if (diffMinutes > 15) {
-            statusEl.textContent = "数据较旧 (" + Math.floor(diffMinutes) + "m)";
-            badgeEl.className = "status-badge stale"; // Orange
-        } else {
-            statusEl.textContent = "数据实时 (" + Math.floor(diffMinutes) + "m)";
-            badgeEl.className = "status-badge live"; // Green
+        // 允许手动输入
+        if(val.length === 4 && hits.length === 0) {
+            currentIcao = val;
+            clearTimeout(window.tmr);
+            window.tmr = setTimeout(() => fetchMetar(val), 800);
         }
+    });
+
+    // 点击外部关闭下拉
+    document.addEventListener('click', (e) => {
+        if(e.target !== iptIcao) drop.innerHTML = "";
+    });
+
+    // 高级设置开关
+    function toggleAdv() {
+        const el = document.getElementById('adv-area');
+        el.style.display = el.style.display === 'block' ? 'none' : 'block';
     }
 
-    // 定时检查器 (每分钟更新文字状态)
-    setInterval(checkStale, 60000);
-
-    // 自动更新器 (每10分钟尝试更新)
-    setInterval(() => {
+    // 强制刷新
+    function forceRefresh() {
         if(currentIcao) fetchMetar(currentIcao);
-    }, UPDATE_INTERVAL);
+        else document.getElementById('ipt-icao').focus();
+    }
 
-    // *** 核心修复: 页面可见性监听 ***
-    // 当用户切回网页或点亮屏幕时，如果数据超过10分钟没更新，立即触发更新
+    // === 6. 自动唤醒更新 (核心修复) ===
     document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === 'visible') {
             const now = Date.now();
-            // 如果已经有了机场代码 且 上次更新是10分钟前
-            if (currentIcao && (now - lastFetchTime > UPDATE_INTERVAL)) {
-                console.log("页面唤醒，数据过旧，立即刷新...");
+            // 如果数据超过10分钟且有机场代码，唤醒立即刷新
+            if (currentIcao && (now - lastFetchTime > 600000)) {
                 fetchMetar(currentIcao);
-            } else {
-                // 仅更新时间显示
-                updateClocks();
             }
         }
     });
 
-    function forceRefresh() {
-        if(currentIcao) fetchMetar(currentIcao);
-    }
-
-    // ==========================================
-    // 6. 搜索与时钟
-    // ==========================================
-    const searchInput = document.getElementById("airport-search");
-    const listDiv = document.getElementById("autocomplete-list");
-    const nameDisplay = document.getElementById("airport-full-name");
-
-    searchInput.addEventListener("input", function(e) {
-        const val = this.value.toUpperCase();
-        listDiv.innerHTML = "";
-        if (!val) { nameDisplay.textContent = ""; return;}
-
-        const matches = airports.filter(a => 
-            a.icao.includes(val) || a.name.includes(this.value) || a.city.toUpperCase().includes(val)
-        );
-
-        matches.forEach(airport => {
-            const item = document.createElement("div");
-            item.innerHTML = `<strong>${airport.icao}</strong> - ${airport.city} ${airport.name}`;
-            item.addEventListener("click", function() {
-                searchInput.value = airport.icao;
-                currentIcao = airport.icao;
-                nameDisplay.textContent = `${airport.city} ${airport.name}国际机场`;
-                listDiv.innerHTML = "";
-                fetchMetar(currentIcao);
-            });
-            listDiv.appendChild(item);
-        });
-
-        if(val.length === 4 && matches.length === 0) {
-             currentIcao = val;
-             nameDisplay.textContent = "自定义机场代码";
-             clearTimeout(window.inputTimer);
-             window.inputTimer = setTimeout(() => fetchMetar(currentIcao), 1000);
-        }
-    });
-
-    document.addEventListener("click", function (e) {
-        if (e.target !== searchInput) listDiv.innerHTML = "";
-    });
-
-    function updateClocks() {
+    // === 7. 时钟 ===
+    setInterval(() => {
         const now = new Date();
-        document.getElementById('time-local').textContent = now.toLocaleTimeString('zh-CN', {hour12: false});
-        document.getElementById('time-utc').textContent = now.toISOString().substring(11, 19) + ' Z';
-    }
-    setInterval(updateClocks, 1000);
-    updateClocks();
-    calculate();
+        document.getElementById('t-local').textContent = now.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+        document.getElementById('t-utc').textContent = now.toISOString().substring(11, 16) + 'Z';
+    }, 1000);
+
+    calc(); // Init
 </script>
 
 </body>
