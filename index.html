@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADS-B 高度修正与气象监控台</title>
+    <title>ADS-B 修正台 (Pro)</title>
     <style>
         :root {
             --bg-color: #f0f2f5;
             --card-bg: #ffffff;
             --text-primary: #1c1e21;
             --text-secondary: #606770;
-            --accent-color: #007AFF; /* Apple Blue */
+            --accent-color: #007AFF;
             --error-color: #FF3B30;
             --warning-color: #FF9500;
             --success-color: #34C759;
@@ -69,10 +69,12 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            transition: all 0.3s;
         }
         
         .status-badge.live { background: #e6f9ed; color: var(--success-color); }
         .status-badge.stale { background: #fff5e6; color: var(--warning-color); }
+        .status-badge.error { background: #ffebeb; color: var(--error-color); }
         .status-badge.loading { background: #e6f2ff; color: var(--accent-color); }
 
         /* Clocks */
@@ -82,7 +84,7 @@
             gap: 20px;
         }
         .clock-card {
-            background: var(--text-primary); /* Dark Mode for clocks */
+            background: var(--text-primary);
             color: white;
             padding: 15px 25px;
             border-radius: var(--radius);
@@ -141,7 +143,7 @@
         .unit-badge {
             position: absolute;
             right: 15px;
-            top: 42px; /* Adjusted for label height */
+            top: 42px;
             font-size: 14px;
             color: var(--text-secondary);
             pointer-events: none;
@@ -196,15 +198,12 @@
         .big-result .value { font-size: 36px; font-weight: 700; }
         .big-result .sub { font-size: 12px; opacity: 0.8; margin-top: 5px; }
 
-        /* Toggle */
         .toggle-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
         .toggle-header { cursor: pointer; color: var(--text-secondary); font-size: 12px; display: flex; align-items: center; gap: 5px; }
 
-        /* Animation */
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-        .updating-dot { display: inline-block; width: 8px; height: 8px; background: var(--success-color); border-radius: 50%; }
-        .updating .updating-dot { animation: pulse 1s infinite; }
-        .stale .updating-dot { background: var(--error-color); animation: none; }
+        .updating-dot { display: inline-block; width: 8px; height: 8px; background: currentColor; border-radius: 50%; }
+        .loading .updating-dot { animation: pulse 0.8s infinite; }
     </style>
 </head>
 <body>
@@ -218,7 +217,7 @@
             <span id="status-text">系统就绪</span>
         </div>
         <div style="font-size: 12px; color: #999;">
-            数据源: NOAA | 更新周期: 10分钟
+            双通道数据源 | 智能唤醒更新
         </div>
     </div>
 
@@ -301,8 +300,7 @@
                 <span class="result-key">系统偏置值 (用于校准设备)</span>
                 <span class="result-val" id="res-offset" style="color: var(--text-primary);">0.00 米</span>
             </div>
-            <div style="font-size: 11px; color: #999; text-align: right; margin-top: -10px;">= 气压修正量 - 机场标高</div>
-
+            
             <div class="big-result">
                 <div class="label">飞机相对高度 (AGL)</div>
                 <div class="value" id="res-final">0.0</div>
@@ -310,8 +308,7 @@
             </div>
 
             <div style="margin-top: 20px; padding: 15px; background: #fff5e6; border-radius: 8px; font-size: 12px; color: #b36b00; line-height: 1.5;">
-                <strong>⚠️ 误差说明：</strong><br>
-                此计算假设标准大气温梯。在极端温度下，气压高度与几何高度可能有额外误差(约4%每10°C温差)。
+                <strong>⚠️ 注意：</strong> 如显示“数据已过期”，请勿依赖此结果。系统会自动尝试双线路更新。
             </div>
         </div>
     </div>
@@ -319,7 +316,7 @@
 
 <script>
     // ==========================================
-    // 1. 内置简易机场数据库 (中国主要 + 世界枢纽)
+    // 1. 机场数据库
     // ==========================================
     const airports = [
         {icao:"ZBAA", name:"北京首都", city:"Beijing"},
@@ -337,7 +334,6 @@
         {icao:"ZSNJ", name:"南京禄口", city:"Nanjing"},
         {icao:"ZSAM", name:"厦门高崎", city:"Xiamen"},
         {icao:"ZHHH", name:"武汉天河", city:"Wuhan"},
-        {icao:"CSX", name:"长沙黄花", icao_code:"ZGHA", city:"Changsha"}, // ICAO typo fix in obj
         {icao:"ZGHA", name:"长沙黄花", city:"Changsha"},
         {icao:"ZBTJ", name:"天津滨海", city:"Tianjin"},
         {icao:"ZSQD", name:"青岛胶东", city:"Qingdao"},
@@ -358,14 +354,102 @@
     ];
 
     // ==========================================
-    // 2. 状态与变量
+    // 2. 状态与配置
     // ==========================================
     let lastFetchTime = 0;
-    let autoUpdateInterval = null;
     let currentIcao = "";
+    const UPDATE_INTERVAL = 10 * 60 * 1000; // 10分钟
 
     // ==========================================
-    // 3. 核心计算逻辑
+    // 3. 增强版网络请求 (核心修复)
+    // ==========================================
+    async function fetchWithTimeout(resource, options = {}) {
+        const { timeout = 8000 } = options; // 8秒超时
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeout);
+        const response = await fetch(resource, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    }
+
+    async function fetchMetar(icao) {
+        if (!icao || icao.length !== 4) return;
+        
+        const statusEl = document.getElementById('status-text');
+        const badgeEl = document.getElementById('status-bar');
+        const ageEl = document.getElementById('qnh-age');
+
+        statusEl.textContent = "正在连接气象源...";
+        badgeEl.className = "status-badge loading";
+
+        // 双代理策略
+        const targetUrl = `https://tgftp.nws.noaa.gov/data/observations/metar/stations/${icao.toUpperCase()}.TXT`;
+        // 代理1: corsproxy.io (速度快)
+        const proxy1 = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        // 代理2: allorigins (备用)
+        const proxy2 = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}&nocache=${Date.now()}`;
+
+        let text = null;
+
+        try {
+            // 尝试代理 1
+            statusEl.textContent = "尝试主线路...";
+            const res1 = await fetchWithTimeout(proxy1);
+            if (res1.ok) text = await res1.text();
+            else throw new Error("Proxy 1 Failed");
+        } catch (e1) {
+            console.warn("主线路失败，切换备用线路...", e1);
+            try {
+                // 尝试代理 2
+                statusEl.textContent = "切换备用线路...";
+                const res2 = await fetchWithTimeout(proxy2);
+                if (res2.ok) text = await res2.text();
+                else throw new Error("All Proxies Failed");
+            } catch (e2) {
+                console.error("更新失败", e2);
+                statusEl.textContent = "网络/源站错误 (点击刷新重试)";
+                badgeEl.className = "status-badge error";
+                return; // 终止
+            }
+        }
+
+        // 解析数据
+        try {
+            // 解析 QNH
+            let qnh = 1013;
+            // 优先匹配 Qxxxx (hPa)
+            if (text.match(/Q(\d{4})/)) {
+                qnh = parseInt(text.match(/Q(\d{4})/)[1]);
+            } 
+            // 其次匹配 Axxxx (inHg)
+            else if (text.match(/A(\d{4})/)) {
+                qnh = Math.round(parseInt(text.match(/A(\d{4})/)[1]) / 100 * 33.8639);
+            } else {
+                throw new Error("报文中无压力数据");
+            }
+
+            // 更新成功
+            document.getElementById('qnh').value = qnh;
+            lastFetchTime = Date.now();
+            
+            // 提取报文时间
+            const timeMatch = text.match(/(\d{2})(\d{4})Z/);
+            if(timeMatch) {
+                // 日期+时间简单展示
+                ageEl.textContent = `(报文: ${timeMatch[2]}Z)`;
+            }
+
+            calculate();
+            checkStale();
+
+        } catch (parseError) {
+            statusEl.textContent = "数据解析错误";
+            badgeEl.className = "status-badge error";
+        }
+    }
+
+    // ==========================================
+    // 4. 计算逻辑
     // ==========================================
     function calculate() {
         const qnh = parseFloat(document.getElementById('qnh').value) || 1013.25;
@@ -379,102 +463,70 @@
         const offset = correction - elevation;
         const final = adsb + correction - elevation;
 
-        // UI Updates
         document.getElementById('diff-pressure').textContent = (diff > 0 ? "+" : "") + diff.toFixed(1) + " hPa";
         document.getElementById('res-correction').textContent = (correction > 0 ? "+" : "") + correction.toFixed(2) + " 米";
         document.getElementById('res-offset').textContent = (offset > 0 ? "+" : "") + offset.toFixed(2) + " 米";
         document.getElementById('res-final').textContent = final.toFixed(1);
     }
 
-    // Bind inputs
     ['qnh', 'elevation', 'adsb-alt', 'coef'].forEach(id => {
         document.getElementById(id).addEventListener('input', calculate);
     });
 
     // ==========================================
-    // 4. 数据获取逻辑 (NOAA)
-    // ==========================================
-    async function fetchMetar(icao) {
-        if (!icao || icao.length !== 4) return;
-        
-        const statusEl = document.getElementById('status-text');
-        const badgeEl = document.getElementById('status-bar');
-        const ageEl = document.getElementById('qnh-age');
-
-        statusEl.textContent = "正在更新气象...";
-        badgeEl.className = "status-badge loading";
-
-        try {
-            // 使用 AllOrigins 作为 CORS 代理
-            const target = `https://tgftp.nws.noaa.gov/data/observations/metar/stations/${icao.toUpperCase()}.TXT`;
-            const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}&nocache=${Date.now()}`;
-            
-            const res = await fetch(proxy);
-            if (!res.ok) throw new Error("Network Error");
-            const text = await res.text();
-            
-            // 解析 QNH (Qxxxx 或 Axxxx)
-            let qnh = 1013;
-            if (text.match(/Q(\d{4})/)) {
-                qnh = parseInt(text.match(/Q(\d{4})/)[1]);
-            } else if (text.match(/A(\d{4})/)) {
-                qnh = Math.round(parseInt(text.match(/A(\d{4})/)[1]) / 100 * 33.8639);
-            } else {
-                throw new Error("无压力数据");
-            }
-
-            // 更新成功
-            document.getElementById('qnh').value = qnh;
-            lastFetchTime = Date.now();
-            checkStale(); // Update UI status
-            calculate();
-            
-            // 提取METAR时间戳显示
-            const timeMatch = text.match(/\d{6}Z/);
-            if(timeMatch) ageEl.textContent = `(报文时间: ${timeMatch[0]})`;
-
-        } catch (e) {
-            console.error(e);
-            statusEl.textContent = "更新失败 - 保持旧值";
-            badgeEl.className = "status-badge stale";
-        }
-    }
-
-    // 强制刷新按钮
-    function forceRefresh() {
-        if(currentIcao) fetchMetar(currentIcao);
-    }
-
-    // ==========================================
-    // 5. 定时任务与过期检查
+    // 5. 智能定时与唤醒机制 (核心修复)
     // ==========================================
     function checkStale() {
         const now = Date.now();
         const statusEl = document.getElementById('status-text');
         const badgeEl = document.getElementById('status-bar');
 
-        // 没获取过数据
         if (lastFetchTime === 0) return;
 
         const diffMinutes = (now - lastFetchTime) / 60000;
 
         if (diffMinutes > 60) {
             statusEl.textContent = "数据已过期 (>1h)";
-            badgeEl.className = "status-badge stale";
+            badgeEl.className = "status-badge error"; // Red
+        } else if (diffMinutes > 15) {
+            statusEl.textContent = "数据较旧 (" + Math.floor(diffMinutes) + "m)";
+            badgeEl.className = "status-badge stale"; // Orange
         } else {
-            statusEl.textContent = "数据实时 (" + Math.floor(diffMinutes) + "分钟前)";
-            badgeEl.className = "status-badge live";
+            statusEl.textContent = "数据实时 (" + Math.floor(diffMinutes) + "m)";
+            badgeEl.className = "status-badge live"; // Green
         }
     }
 
-    // 启动定时器
-    setInterval(checkStale, 60000); // 每分钟检查一次过期
+    // 定时检查器 (每分钟更新文字状态)
+    setInterval(checkStale, 60000);
+
+    // 自动更新器 (每10分钟尝试更新)
     setInterval(() => {
         if(currentIcao) fetchMetar(currentIcao);
-    }, 600000); // 每10分钟自动拉取一次 NOAA
+    }, UPDATE_INTERVAL);
+
+    // *** 核心修复: 页面可见性监听 ***
+    // 当用户切回网页或点亮屏幕时，如果数据超过10分钟没更新，立即触发更新
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === 'visible') {
+            const now = Date.now();
+            // 如果已经有了机场代码 且 上次更新是10分钟前
+            if (currentIcao && (now - lastFetchTime > UPDATE_INTERVAL)) {
+                console.log("页面唤醒，数据过旧，立即刷新...");
+                fetchMetar(currentIcao);
+            } else {
+                // 仅更新时间显示
+                updateClocks();
+            }
+        }
+    });
+
+    function forceRefresh() {
+        if(currentIcao) fetchMetar(currentIcao);
+    }
 
     // ==========================================
-    // 6. 机场自动补全 (Search)
+    // 6. 搜索与时钟
     // ==========================================
     const searchInput = document.getElementById("airport-search");
     const listDiv = document.getElementById("autocomplete-list");
@@ -485,49 +537,35 @@
         listDiv.innerHTML = "";
         if (!val) { nameDisplay.textContent = ""; return;}
 
-        // 搜索逻辑：匹配 ICAO, Name, 或 City
         const matches = airports.filter(a => 
-            a.icao.includes(val) || 
-            a.name.includes(this.value) || 
-            a.city.toUpperCase().includes(val)
+            a.icao.includes(val) || a.name.includes(this.value) || a.city.toUpperCase().includes(val)
         );
 
         matches.forEach(airport => {
             const item = document.createElement("div");
             item.innerHTML = `<strong>${airport.icao}</strong> - ${airport.city} ${airport.name}`;
             item.addEventListener("click", function() {
-                // 选中后的行为
                 searchInput.value = airport.icao;
                 currentIcao = airport.icao;
                 nameDisplay.textContent = `${airport.city} ${airport.name}国际机场`;
                 listDiv.innerHTML = "";
-                
-                // 立即获取数据
                 fetchMetar(currentIcao);
             });
             listDiv.appendChild(item);
         });
 
-        // 如果用户手动输入了4位代码但没在列表里，也允许
         if(val.length === 4 && matches.length === 0) {
              currentIcao = val;
              nameDisplay.textContent = "自定义机场代码";
-             // 延时一下触发获取，防止输入一半就触发
              clearTimeout(window.inputTimer);
              window.inputTimer = setTimeout(() => fetchMetar(currentIcao), 1000);
         }
     });
 
-    // 点击外部关闭列表
     document.addEventListener("click", function (e) {
-        if (e.target !== searchInput) {
-            listDiv.innerHTML = "";
-        }
+        if (e.target !== searchInput) listDiv.innerHTML = "";
     });
 
-    // ==========================================
-    // 7. 时钟
-    // ==========================================
     function updateClocks() {
         const now = new Date();
         document.getElementById('time-local').textContent = now.toLocaleTimeString('zh-CN', {hour12: false});
@@ -535,7 +573,7 @@
     }
     setInterval(updateClocks, 1000);
     updateClocks();
-    calculate(); // Init
+    calculate();
 </script>
 
 </body>
